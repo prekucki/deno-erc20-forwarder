@@ -2,10 +2,10 @@ import { log } from '../deps.ts';
 import { Context, Router, Status } from '../webapps.ts';
 import { z } from '../deps.ts';
 import { utils } from '../sci.ts';
-import web3, { config, gracePeriodMs } from '../config.ts';
-import { contract } from '../sci/golem-polygon-contract.ts';
+import web3, { config, glm, gracePeriodMs } from '../config.ts';
 import { TransactionSender } from '../sci/transaction-sender.ts';
 import { decodeTransfer } from '../sci/transfer-tx-decoder.ts';
+import { validateCallArguments } from '../sci/validate-call-arguments.ts';
 
 const HexString = () => z.string().refine(utils.isHex, 'expected hex string');
 const Address = () => z.string().refine(utils.isAddress, 'expected eth address');
@@ -20,11 +20,6 @@ const ForwardRequest = z.object({
 });
 
 const sender = new TransactionSender(web3, config.secret!);
-/*
-  Mainnet = "0x0b220b82f3ea3b7f6d9a1d8ab58930c064a2b5bf";
-  Mumbai = "0x2036807B0B3aaf5b1858EE822D0e111fDdac7018";
-*/
-const glm = contract(web3, '0x0b220b82f3ea3b7f6d9a1d8ab58930c064a2b5bf');
 
 sender.start();
 
@@ -36,15 +31,29 @@ export default new Router()
         try {
             const input = ForwardRequest.parse(await ctx.request.body({ type: 'json' }).value);
             // checking if this is transfer
-            const decoded = decodeTransfer(input.abiFunctionCall);
-            if (!decoded) {
+            const decoded_arguments = decodeTransfer(input.abiFunctionCall);
+            if (!decoded_arguments) {
                 ctx.response.status = 400;
                 ctx.response.body = {
                     message: 'unable to decode transaction',
                 };
                 return;
             }
-            logger.info(() => `Forwarding transfer from ${input.sender} to ${decoded.recipient} of ${utils.fromWei(decoded.amount)}`);
+
+            // TODO: provide block number
+            const block_number = 1234;
+
+            const error_details = await validateCallArguments(input.sender, decoded_arguments, block_number);
+
+            if (!error_details) {
+                ctx.response.status = 400;
+                ctx.response.body = {
+                    message: error_details,
+                };
+                return;
+            }
+
+            logger.info(() => `Forwarding transfer from ${input.sender} to ${decoded_arguments.recipient} of ${utils.fromWei(decoded_arguments.amount)}`);
             logger.debug(() => `input=${JSON.stringify(input)}`);
 
             const data = glm.methods.executeMetaTransaction(input.sender, input.abiFunctionCall, input.r, input.s, input.v).encodeABI();
