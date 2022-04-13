@@ -1,8 +1,8 @@
 import { TransferArgs } from './transfer-tx-decoder.ts';
 import web3, { blockMaxAgeS, glm } from '../config.ts';
 
-export async function validateCallArguments(sender: string, transfer_details: TransferArgs, blockNumber: number): Promise<string | undefined> {
-    let requested_amount = web3.utils.toBN(transfer_details.amount);
+export async function validateCallArguments(sender: string, transfer_details: TransferArgs, blockNumber: number | string = 'latest'): Promise<string | undefined> {
+    const requested_amount = web3.utils.toBN(transfer_details.amount);
 
     if (requested_amount.isZero()) {
         return 'Cannot transfer 0 tokens';
@@ -25,7 +25,7 @@ export async function validateCallArguments(sender: string, transfer_details: Tr
     let block;
     try {
         block = await web3.eth.getBlock(blockNumber);
-    } catch (error) {
+    } catch (_error) {
         return `Block ${blockNumber} is too old`;
     }
 
@@ -33,12 +33,12 @@ export async function validateCallArguments(sender: string, transfer_details: Tr
         return `Block ${blockNumber} is still pending`;
     }
 
-    let now_seconds = Date.now() / 1000;
+    const now_seconds = Date.now() / 1000;
     if (now_seconds - +block.timestamp > blockMaxAgeS) {
         return 'Provided block is too old and can contain stale data';
     }
 
-    let balance = await web3.eth.call({ data: glm.methods.balanceOf(from).encodeABI(), to: glm.options.address }, blockNumber).then((res) => web3.utils.toBN(res));
+    const balance = await web3.eth.call({ data: glm.methods.balanceOf(from).encodeABI(), to: glm.options.address }, blockNumber).then((res) => web3.utils.toBN(res));
 
     if (!requested_amount.eq(balance)) {
         return 'Only full withdrawals are supported';
