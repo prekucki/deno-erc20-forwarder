@@ -5,7 +5,7 @@ import { utils } from '../sci.ts';
 import web3, { blockMaxAgeS, config, glm, gracePeriodMs } from '../config.ts';
 import { TransactionSender } from '../sci/transaction-sender.ts';
 import { decodeTransfer } from '../sci/transfer-tx-decoder.ts';
-import { validateCallArguments } from '../sci/validate-call-arguments.ts';
+import { validateCallArguments } from "./validate-call-arguments.ts";
 
 const HexString = () => z.string().refine(utils.isHex, 'expected hex string');
 const Address = () => z.string().refine(utils.isAddress, 'expected eth address');
@@ -17,7 +17,7 @@ const ForwardRequest = z.object({
     sender: Address(),
     abiFunctionCall: HexString(),
     signedRequest: HexString().optional(),
-    blockNumber: HexString().default('latest'),
+    blockHash: HexString().default('latest'),
 });
 
 const sender = new TransactionSender(web3, config.secret!);
@@ -41,7 +41,7 @@ export default new Router()
                 return;
             }
 
-            const error_details = await validateCallArguments(input.sender, decoded_arguments, input.blockNumber);
+            const error_details = await validateCallArguments(input.sender, decoded_arguments, input.blockHash);
 
             if (!error_details) {
                 ctx.response.status = 400;
