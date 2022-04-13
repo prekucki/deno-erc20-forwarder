@@ -1,7 +1,7 @@
 import { TransferArgs } from './transfer-tx-decoder.ts';
 import web3, { blockMaxAgeS, glm } from '../config.ts';
 
-export async function validateCallArguments(sender: string, transfer_details: TransferArgs, blockNumber: number | string = 'latest'): Promise<string | undefined> {
+export async function validateCallArguments(sender: string, transfer_details: TransferArgs, blockNumber: string): Promise<string | undefined> {
     const requested_amount = web3.utils.toBN(transfer_details.amount);
 
     if (requested_amount.isZero()) {

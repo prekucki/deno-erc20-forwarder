@@ -2,7 +2,7 @@ import { log } from '../deps.ts';
 import { Context, Router, Status } from '../webapps.ts';
 import { z } from '../deps.ts';
 import { utils } from '../sci.ts';
-import web3, { config, glm, gracePeriodMs } from '../config.ts';
+import web3, { blockMaxAgeS, config, glm, gracePeriodMs } from '../config.ts';
 import { TransactionSender } from '../sci/transaction-sender.ts';
 import { decodeTransfer } from '../sci/transfer-tx-decoder.ts';
 import { validateCallArguments } from '../sci/validate-call-arguments.ts';
@@ -17,6 +17,7 @@ const ForwardRequest = z.object({
     sender: Address(),
     abiFunctionCall: HexString(),
     signedRequest: HexString().optional(),
+    blockNumber: HexString().default('latest'),
 });
 
 const sender = new TransactionSender(web3, config.secret!);
@@ -40,10 +41,7 @@ export default new Router()
                 return;
             }
 
-            // TODO: provide block number
-            const block_number = 1234;
-
-            const error_details = await validateCallArguments(input.sender, decoded_arguments, block_number);
+            const error_details = await validateCallArguments(input.sender, decoded_arguments, input.blockNumber);
 
             if (!error_details) {
                 ctx.response.status = 400;
@@ -125,5 +123,6 @@ export default new Router()
             queueSize,
             contractAddress,
             gracePeriodMs,
+            blockMaxAgeS,
         };
     });
