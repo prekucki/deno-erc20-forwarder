@@ -8,12 +8,12 @@ export async function validateCallArguments(sender: string, transfer_details: Tr
         return 'Cannot transfer 0 tokens';
     }
 
-    let from = sender;
+    let from = sender.toLocaleLowerCase();
     if (!from.startsWith('0x')) {
         from = '0x' + from;
     }
 
-    let to = transfer_details.recipient;
+    let to = transfer_details.recipient.toLowerCase();
     if (!to.startsWith('0x')) {
         to = '0x' + to;
     }
