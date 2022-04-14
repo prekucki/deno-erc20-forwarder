@@ -1,11 +1,9 @@
-import { log } from '../deps.ts';
-import { Context, Router, Status } from '../webapps.ts';
+import { Context, log, Router, Status } from '../deps.ts';
 import { z } from '../deps.ts';
 import { utils } from '../sci.ts';
 import web3, { blockMaxAgeS, config, glm, gracePeriodMs } from '../config.ts';
 import { TransactionSender } from '../sci/transaction-sender.ts';
-import { decodeTransfer } from '../sci/transfer-tx-decoder.ts';
-import { validateCallArguments } from './validate-call-arguments.ts';
+import { decodeTransfer, TransferArgs } from '../sci/transfer-tx-decoder.ts';
 
 const HexString = () => z.string().refine(utils.isHex, 'expected hex string');
 const Address = () => z.string().refine(utils.isAddress, 'expected eth address');
@@ -42,7 +40,7 @@ export default new Router()
                 return;
             }
 
-            const error_details = await validateCallArguments(input.sender, decoded_arguments, input.blockHash || 'latest');
+            const error_details = await validateTransferMetaTxArguments(input.sender, decoded_arguments, input.blockHash || 'latest');
 
             if (error_details) {
                 ctx.response.status = 400;
@@ -55,13 +53,13 @@ export default new Router()
             logger.info(() => `Forwarding transfer from ${input.sender} to ${decoded_arguments.recipient} of ${utils.fromWei(decoded_arguments.amount)}`);
             logger.debug(() => `input=${JSON.stringify(input)}`);
 
-            if (!error_details) {
-                ctx.response.status = 400;
-                ctx.response.body = {
-                    message: 'early return',
-                };
-                return;
-            }
+            // if (!error_details) {
+            //     ctx.response.status = 400;
+            //     ctx.response.body = {
+            //         message: 'early return',
+            //     };
+            //     return;
+            // }
 
             const data = glm.methods.executeMetaTransaction(input.sender, input.abiFunctionCall, input.r, input.s, input.v).encodeABI();
 
@@ -135,3 +133,51 @@ export default new Router()
             blockMaxAgeS,
         };
     });
+
+// TODO: deno test - fails at runtime
+// deno test -A is OK
+export async function validateTransferMetaTxArguments(sender: string, transfer_details: TransferArgs, block_hash: string): Promise<string | undefined> {
+    const requested_amount = web3.utils.toBN(transfer_details.amount);
+
+    if (requested_amount.isZero()) {
+        return 'Cannot transfer 0 tokens';
+    }
+
+    let from = sender.toLocaleLowerCase();
+    if (!from.startsWith('0x')) {
+        from = '0x' + from;
+    }
+
+    let to = transfer_details.recipient.toLowerCase();
+    if (!to.startsWith('0x')) {
+        to = '0x' + to;
+    }
+
+    if (from === to) {
+        return 'Sender and recipient addresses must differ';
+    }
+
+    let block;
+    try {
+        block = await web3.eth.getBlock(block_hash);
+    } catch (_error) {
+        return `Block ${block_hash} is too old`;
+    }
+
+    if (!block.nonce) {
+        return `Block ${block_hash} is still pending`;
+    }
+
+    const now_seconds = Date.now() / 1000;
+    if (now_seconds - +block.timestamp > blockMaxAgeS) {
+        return 'Provided block is too old and can contain stale data';
+    }
+
+    const balance = await web3.eth.call({ data: glm.methods.balanceOf(from).encodeABI(), to: glm.options.address }, block_hash).then((res) => web3.utils.toBN(res));
+
+    if (!requested_amount.eq(balance)) {
+        return 'Only full withdrawals are supported';
+    }
+
+    return undefined;
+}
