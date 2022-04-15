@@ -1,8 +1,7 @@
 import { assertEquals } from 'https://deno.land/std@0.134.0/testing/asserts.ts';
 import web3, { glm } from '../config.ts';
 import { TransferArgs } from '../sci/transfer-tx-decoder.ts';
-import { validateTransferMetaTxArguments } from "./forward.ts";
-
+import { validateTransferMetaTxArguments } from './forward.ts';
 
 const IS_OFFLINE = (await Deno.permissions.query({ name: 'net' })).state !== 'granted';
 
